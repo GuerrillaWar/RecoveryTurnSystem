@@ -61,7 +61,7 @@ function UpdateQueuedUnits(XComGameState_RecoveryQueue Queue)
 		Unit = XComGameState_Unit(`XCOMHISTORY.GetGameStateForObjectID(UnitsInQueue[i].ObjectID));
 		RecoveryTime = Queue.GetRecoveryTimeForUnitRef(UnitsInQueue[i]);
 		if (Unit.IsDead()) continue;
-		if (Unit.IsCivilian()) continue; // don't show civilians
+		if (Unit.GetTeam() != eTeam_XCom && Unit.GetTeam() != eTeam_Alien) continue; // don't show units off main teams
 
 		if (!RenderedTurnIndicator && (RecoveryTime <= Queue.TurnTimeRemaining))
 		{
