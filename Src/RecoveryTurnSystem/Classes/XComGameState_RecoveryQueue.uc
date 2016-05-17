@@ -8,6 +8,7 @@ struct RecoveringUnit
 
 var() array<RecoveringUnit> Queue;
 var() RecoveringUnit CurrentUnit;
+var() array<StateObjectReference> CurrentFollowers;
 var() int TurnTimeRemaining;
 var const config int RecoveryCeiling;
 var const config int RecoveryMaxClamp;
@@ -46,9 +47,9 @@ function AddUnitToQueue(XComGameState_Unit UnitState, optional bool addedMidMiss
 	Queue.AddItem(QueueEntry);
 }
 
-function ReturnUnitToQueue(XComGameState_Unit UnitState)
+
+function int GetRecoveryCostForUnitState(XComGameState_Unit UnitState)
 {
-	local RecoveringUnit QueueEntry, BlankRecovery;
 	local int RecoveryCost, DefaultRecovery, RemainingPoints;
 
 	DefaultRecovery = Clamp(
@@ -71,6 +72,46 @@ function ReturnUnitToQueue(XComGameState_Unit UnitState)
 		RecoveryCost = RecoveryWait;
 	}
 
+	return RecoveryCost;
+}
+
+function ReturnFollowerUnitToQueue(XComGameState_Unit UnitState)
+{
+	local RecoveringUnit Entry;
+	local StateObjectReference UnitRef;
+	local int FollowerIndex, ix, QueueIndex, RecoveryCost;
+
+	RecoveryCost = GetRecoveryCostForUnitState(UnitState);
+
+	foreach CurrentFollowers(UnitRef, ix)
+	{
+		if (UnitRef.ObjectID == UnitState.ObjectID)
+		{
+			FollowerIndex = ix;
+			break;
+		}
+	}
+
+	CurrentFollowers.Remove(FollowerIndex, 1);
+
+	foreach Queue(Entry, ix)
+	{
+		if (Entry.UnitRef.ObjectID == UnitState.ObjectID)
+		{
+			QueueIndex = ix;
+			break;
+		}
+	}
+
+	Queue[QueueIndex].RecoveryTime += RecoveryCost; // Stacking the cost rather than resetting.
+}
+
+function ReturnUnitToQueue(XComGameState_Unit UnitState)
+{
+	local RecoveringUnit QueueEntry, BlankRecovery;
+	local int RecoveryCost;
+
+	RecoveryCost = GetRecoveryCostForUnitState(UnitState);
 	`log("Returning Unit to Queue with Recovery: " @RecoveryCost);
 
 	CurrentUnit = BlankRecovery;
@@ -80,10 +121,19 @@ function ReturnUnitToQueue(XComGameState_Unit UnitState)
 	Queue.AddItem(QueueEntry);
 }
 
-
 function StateObjectReference GetCurrentUnitReference()
 {
 	return CurrentUnit.UnitRef;
+}
+
+function AddFollower(XComGameState_Unit Follower)
+{
+	CurrentFollowers.AddItem(Follower.GetReference());
+}
+
+function array<StateObjectReference> GetCurrentFollowerReferences()
+{
+	return CurrentFollowers;
 }
 
 function bool TurnEnded()

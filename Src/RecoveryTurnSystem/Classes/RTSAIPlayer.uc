@@ -40,6 +40,7 @@ simulated function ReturnRecoveringUnitToQueue()
 	local XComGameState_Unit UnitState;
 	local XComGameState NewGameState;
 	local StateObjectReference UnitRef;
+	local array<StateObjectReference> FollowerRefs;
 
 	RecoveryQueue = XComGameState_RecoveryQueue(`XCOMHISTORY.GetSingleGameStateObjectForClass(class'XComGameState_RecoveryQueue'));
 	NewGameState = class'XComGameStateContext_ChangeContainer'.static.CreateChangeState("ReturnUnitToRecoveryQueue");
@@ -50,6 +51,13 @@ simulated function ReturnRecoveringUnitToQueue()
 	{
 		UnitState = XComGameState_Unit(`XCOMHISTORY.GetGameStateForObjectID(UnitRef.ObjectID));
 		RecoveryQueue.ReturnUnitToQueue(UnitState);
+	}
+	
+	FollowerRefs = RecoveryQueue.GetCurrentFollowerReferences();
+	foreach FollowerRefs(UnitRef)
+	{	
+		UnitState = XComGameState_Unit(`XCOMHISTORY.GetGameStateForObjectID(UnitRef.ObjectID));
+		RecoveryQueue.ReturnFollowerUnitToQueue(UnitState);
 	}
 
 	NewGameState.AddStateObject(RecoveryQueue);

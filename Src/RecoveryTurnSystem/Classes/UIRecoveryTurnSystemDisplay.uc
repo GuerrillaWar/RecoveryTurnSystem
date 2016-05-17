@@ -2,7 +2,6 @@
 
 class UIRecoveryTurnSystemDisplay extends UIPanel dependson(XComGameState_RecoveryQueue);
 
-var UITacticalHUD TacHUDScreen;
 var XComGameState_RecoveryQueue CurrentQueue;
 var UIList Container;
 var StateObjectReference BlankReference;
@@ -12,8 +11,6 @@ var X2Camera_LookAtActor LookAtTargetCam;
 
 function InitRecoveryQueue(UITacticalHUD TacHUDScreen)
 {
-	local Object ThisObj;
-	
 	Container = TacHUDScreen.Spawn(class'UIList', TacHUDScreen);
 	Container.InitList('RecoveryQueueDisplayList',
 					   0, 0, 100, 1000);
@@ -31,17 +28,11 @@ function UpdateQueuedUnits(XComGameState_RecoveryQueue Queue)
 	local X2VisualizerInterface Visualizer;
 	local XComGameState_Player XComPlayerState;
 	local UIIcon Icon;
-	local ETeam Team;
 	local RecoveringUnit Entry;
 	local int i, Size, RecoveryTime;
 	local bool RenderedTurnIndicator;
-	local X2Condition_UnitProperty PlayerFilter;
-	local array<X2Condition> PlayerFilters;
 
 	CurrentQueue = Queue;
-	PlayerFilter = new class'X2Condition_UnitProperty';
-	PlayerFilter.IsPlayerControlled = true;
-	PlayerFilters.AddItem(PlayerFilter);
 
 	XComPlayerState = XComGameState_Player(
 		`XCOMHISTORY.GetGameStateForObjectID(XGBattle_SP(`BATTLE).GetHumanPlayer().ObjectID)

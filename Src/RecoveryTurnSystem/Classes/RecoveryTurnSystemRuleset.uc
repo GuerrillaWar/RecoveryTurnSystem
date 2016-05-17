@@ -56,6 +56,7 @@ simulated state CreateTacticalGame
 	simulated function StartStateRecoveryQueue(XComGameState StartState)
 	{
 		local XComGameState_Unit UnitState;
+		local bool PartOfTeam;
 		local XComGameState_RecoveryQueue QueueState;		
 		
 		QueueState = XComGameState_RecoveryQueue(StartState.CreateStateObject(class'XComGameState_RecoveryQueue'));
@@ -64,8 +65,9 @@ simulated state CreateTacticalGame
 
 		foreach StartState.IterateByClassType(class'XComGameState_Unit', UnitState)
 		{
+			PartOfTeam = UnitState.GetTeam() == eTeam_XCom || UnitState.GetTeam() == eTeam_Alien;
 
-			if (!UnitState.GetMyTemplate().bIsCosmetic) {
+			if (!UnitState.GetMyTemplate().bIsCosmetic && PartOfTeam) {
 				`log("Adding to queue: " @UnitState.ObjectID);
 				QueueState.AddUnitToQueue(UnitState);
 			}
@@ -302,10 +304,13 @@ simulated state TurnPhase_UnitActions
 	simulated function XComGameState_RecoveryQueue ScanForNewUnits(XComGameState NewGameState, XComGameState_RecoveryQueue QueueState)
 	{
 		local XComGameState_Unit UnitState;
+		local bool PartOfTeam;
 		
 		foreach CachedHistory.IterateByClassType(class'XComGameState_Unit', UnitState)
 		{
-			if (!UnitState.GetMyTemplate().bIsCosmetic && !QueueState.CheckUnitInQueue(UnitState.GetReference()))
+			PartOfTeam = UnitState.GetTeam() == eTeam_XCom || UnitState.GetTeam() == eTeam_Alien;
+
+			if (!UnitState.GetMyTemplate().bIsCosmetic && PartOfTeam && !QueueState.CheckUnitInQueue(UnitState.GetReference()))
 			{
 				`log("Adding to queue: " @UnitState.ObjectID);
 				QueueState.AddUnitToQueue(UnitState, true);
@@ -320,6 +325,7 @@ simulated state TurnPhase_UnitActions
 		local XComGameState_Unit UnitState;
 		local XComGameState NewGameState;
 		local StateObjectReference UnitRef;
+		local array<StateObjectReference> FollowerRefs;
 
 		RecoveryQueue = XComGameState_RecoveryQueue(CachedHistory.GetSingleGameStateObjectForClass(class'XComGameState_RecoveryQueue'));
 		NewGameState = class'XComGameStateContext_ChangeContainer'.static.CreateChangeState("ReturnUnitToRecoveryQueue");
@@ -332,6 +338,13 @@ simulated state TurnPhase_UnitActions
 			RecoveryQueue.ReturnUnitToQueue(UnitState);
 		}
 
+		FollowerRefs = RecoveryQueue.GetCurrentFollowerReferences();
+		foreach FollowerRefs(UnitRef)
+		{	
+			UnitState = XComGameState_Unit(CachedHistory.GetGameStateForObjectID(UnitRef.ObjectID));
+			RecoveryQueue.ReturnFollowerUnitToQueue(UnitState);
+		}
+
 		NewGameState.AddStateObject(RecoveryQueue);
 		SubmitGameState(NewGameState);
 	}
@@ -342,9 +355,10 @@ simulated state TurnPhase_UnitActions
 		local XComGameState NewGameState;
 		local XGPlayer PlayerStateVisualizer;
 		local XComGameState_RecoveryQueue RecoveryQueue;
-		local XComGameState_Unit UnitState, NewUnitState;
-		local StateObjectReference UnitRef, ControllingPlayer;
+		local XComGameState_Unit UnitState, NewUnitState, FollowerState;
+		local StateObjectReference UnitRef, ControllingPlayer, FollowerRef;
 		local X2EventManager EventManager;
+		local int FollowerIx;
 
 		EventManager = `XEVENTMGR;
 
@@ -361,12 +375,35 @@ simulated state TurnPhase_UnitActions
 			NewGameState.AddStateObject(RecoveryQueue);
 			UnitRef = RecoveryQueue.PopNextUnitReference();
 			UnitState = XComGameState_Unit(CachedHistory.GetGameStateForObjectID(UnitRef.ObjectID));
+
+			while (UnitState.IsDead()) // avoid visualising turn changes towards units that can't do anything
+			{
+				UnitRef = RecoveryQueue.PopNextUnitReference();
+				UnitState = XComGameState_Unit(CachedHistory.GetGameStateForObjectID(UnitRef.ObjectID));
+			}
+
 			ControllingPlayer = UnitState.ControllingPlayer;
 			CachedUnitActionPlayerRef = ControllingPlayer;
 			`log("Unit Reference Popped: " @UnitState.GetMyTemplateName());
 
 			NewUnitState = XComGameState_Unit(NewGameState.CreateStateObject(class'XComGameState_Unit', UnitState.ObjectID));
+
 			NewUnitState.SetupActionsForBeginTurn();
+			if (NewUnitState.IsGroupLeader()) {
+				if ( XGUnit(NewUnitState.GetVisualizer()).GetAlertLevel(UnitState) != eAL_Red )
+				{
+					foreach NewUnitState.GetGroupMembership().m_arrMembers(FollowerRef, FollowerIx)
+					{
+						if (FollowerIx == 0) continue; // this is the leader so ignore
+						FollowerState = XComGameState_Unit(CachedHistory.GetGameStateForObjectID(FollowerRef.ObjectID));
+						FollowerState = XComGameState_Unit(NewGameState.CreateStateObject(class'XComGameState_Unit', FollowerState.ObjectID));
+						RecoveryQueue.AddFollower(FollowerState);
+						FollowerState.SetupActionsForBeginTurn();
+						NewGameState.AddStateObject(FollowerState);
+					}
+					`log("Alert Level" @ XGUnit(NewUnitState.GetVisualizer()).GetAlertLevel(UnitState));
+				}
+			}
 			// Add the updated unit state object to the new game state
 			NewGameState.AddStateObject(NewUnitState);
 			EventManager.TriggerEvent('RecoveryTurnSystemUpdate', RecoveryQueue);
