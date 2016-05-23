@@ -4,6 +4,7 @@
 class RecoveryTurnSystemRuleset extends X2TacticalGameRuleset config(RecoveryTurnSystem);
 
 var() bool bSkipRemainingTurnActivity; // we need our own because the base class protected it
+var() ETeam LastActiveTeam;
 
 function OnNewGameState(XComGameState NewGameState)
 {
@@ -418,7 +419,21 @@ simulated state TurnPhase_UnitActions
 			PlayerStateVisualizer = XGPlayer(PlayerState.GetVisualizer());
 			PlayerStateVisualizer.OnUnitActionPhaseBegun_NextPlayer();  // This initializes the AI turn 
 
-			CachedUnitActionPlayerRef = ControllingPlayer;		
+			CachedUnitActionPlayerRef = ControllingPlayer;
+			
+			if (UnitState.GetTeam() != LastActiveTeam)
+			{
+				if (UnitState.GetTeam() == eTeam_XCom)
+				{
+					`PRES.UIEndTurn(eTurnOverlay_Local);
+				}		
+				else
+				{
+					`PRES.UIEndTurn(eTurnOverlay_Alien);
+				}
+			}
+
+			LastActiveTeam = UnitState.GetTeam();
 
 			`XTACTICALSOUNDMGR.EvaluateTacticalMusicState();
 			return true;

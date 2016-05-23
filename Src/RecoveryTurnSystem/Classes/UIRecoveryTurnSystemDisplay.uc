@@ -1,6 +1,6 @@
 // This is an Unreal Script
 
-class UIRecoveryTurnSystemDisplay extends UIPanel dependson(XComGameState_RecoveryQueue);
+class UIRecoveryTurnSystemDisplay extends UIPanel dependson(XComGameState_RecoveryQueue) config(RecoveryTurnSystem);
 
 var XComGameState_RecoveryQueue CurrentQueue;
 var UIList Container;
@@ -8,6 +8,12 @@ var StateObjectReference BlankReference;
 var array<StateObjectReference> UnitsInQueue;
 var array<StateObjectReference> IconMapping;
 var X2Camera_LookAtActor LookAtTargetCam;
+
+var UIText NextUnitText, HoverUnitText;
+var UIText WaitMarker, HalfMarker, FullMarker;
+var int LastContainerOffset;
+
+var const config bool DisplayHiddenEnemiesInQueue;
 
 function InitRecoveryQueue(UITacticalHUD TacHUDScreen)
 {
@@ -19,20 +25,63 @@ function InitRecoveryQueue(UITacticalHUD TacHUDScreen)
 	Container.SetPosition(0, -1000);
 	Container.SetSize(100, 100);
 	Container.OnChildMouseEventDelegate = OnChildMouseEventDelegate;
+
+	HoverUnitText = TacHUDScreen.Spawn(class'UIText', TacHUDScreen);
+	HoverUnitText.InitText(, , true);
+	HoverUnitText.AnchorBottomLeft();
+	HoverUnitText.SetPosition(68, 0);
+	HoverUnitText.SetSize(700, 48);
+	HoverUnitText.Hide();
+
+	NextUnitText = TacHUDScreen.Spawn(class'UIText', TacHUDScreen);
+	NextUnitText.InitText(, , true);
+	NextUnitText.AnchorBottomLeft();
+	NextUnitText.SetPosition(68, -150 - 48);
+	NextUnitText.SetSize(700, 48);
+	NextUnitText.Hide();
+
+	WaitMarker = TacHUDScreen.Spawn(class'UIText', TacHUDScreen);
+	WaitMarker.InitText(, , true);
+	WaitMarker.SetCenteredText("-       -");
+	WaitMarker.AnchorBottomLeft();
+	WaitMarker.SetPosition(10, 0);
+	WaitMarker.SetSize(48, 16);
+	WaitMarker.Hide();
+
+	HalfMarker = TacHUDScreen.Spawn(class'UIText', TacHUDScreen);
+	HalfMarker.InitText(, , true);
+	HalfMarker.SetCenteredText("--     --");
+	HalfMarker.AnchorBottomLeft();
+	HalfMarker.SetPosition(10, 0);
+	HalfMarker.SetSize(48, 16);
+	HalfMarker.Hide();
+
+	FullMarker = TacHUDScreen.Spawn(class'UIText', TacHUDScreen);
+	FullMarker.InitText(, , true);
+	FullMarker.SetCenteredText("---  ---");
+	FullMarker.AnchorBottomLeft();
+	FullMarker.SetPosition(10, 0);
+	FullMarker.SetSize(48, 16);
+	FullMarker.Hide();
+
 	`log("Anchored Display");
 }
 
 function UpdateQueuedUnits(XComGameState_RecoveryQueue Queue)
 {
-	local XComGameState_Unit Unit;
+	local XComGameState_Unit Unit, CurrentUnit;
 	local X2VisualizerInterface Visualizer;
 	local XComGameState_Player XComPlayerState;
 	local UIIcon Icon;
 	local RecoveringUnit Entry;
 	local int i, Size, RecoveryTime;
+	local string NextUnitName;
 	local bool RenderedTurnIndicator;
+	local array<int> CurrentCostArray;
 
 	CurrentQueue = Queue;
+
+
 
 	XComPlayerState = XComGameState_Player(
 		`XCOMHISTORY.GetGameStateForObjectID(XGBattle_SP(`BATTLE).GetHumanPlayer().ObjectID)
@@ -77,7 +126,7 @@ function UpdateQueuedUnits(XComGameState_RecoveryQueue Queue)
 
 		if (Unit.GetTeam() != eTeam_XCom)
 		{
-			if (!class'X2TacticalVisibilityHelpers'.static.CanSquadSeeTarget(XComPlayerState.ObjectID, Unit.ObjectID))
+			if (!class'X2TacticalVisibilityHelpers'.static.CanSquadSeeTarget(XComPlayerState.ObjectID, Unit.ObjectID) && !DisplayHiddenEnemiesInQueue)
 			{
 				continue;
 			}
@@ -92,6 +141,8 @@ function UpdateQueuedUnits(XComGameState_RecoveryQueue Queue)
 		Size += 48;
 		IconMapping.AddItem(UnitsInQueue[i]);
 	}
+
+
 	// UIListItemString(Container.CreateItem()).InitListItem("Turn Time Left :" @ Queue.TurnTimeRemaining);
 	if (!RenderedTurnIndicator)
 	{
@@ -104,18 +155,76 @@ function UpdateQueuedUnits(XComGameState_RecoveryQueue Queue)
 		RenderedTurnIndicator = true;
 		IconMapping.AddItem(BlankReference);
 	}
+	
+	LastContainerOffset = -150 - Size;
+	NextUnitText.SetPosition(68, LastContainerOffset + ((IconMapping.Length - 1) * 48));
+
+
+
+	// Recovery Preview Pips
+	CurrentUnit = XComGameState_Unit(`XCOMHISTORY.GetGameStateForObjectID(Queue.CurrentUnit.UnitRef.ObjectID));
+	CurrentCostArray = Queue.GetRecoveryCostArrayForUnitState(CurrentUnit);
+
+	for(i = 0; i < IconMapping.Length; i++)
+	{
+		if (IconMapping[i].ObjectID != 0)
+		{
+			RecoveryTime = Queue.GetRecoveryTimeForUnitRef(IconMapping[i]);
+		}
+		else
+		{
+			RecoveryTime = Queue.TurnTimeRemaining;
+		}
+
+		if (CurrentCostArray.Length > 0 && CurrentCostArray[0] > RecoveryTime)
+		{
+			if (CurrentCostArray.Length == 3) // full marker
+			{
+				FullMarker.SetPosition(10, LastContainerOffset + (i * 48) - 12);
+				FullMarker.Show();
+			}
+			else if (CurrentCostArray.Length == 2)
+			{
+				HalfMarker.SetPosition(10, LastContainerOffset + (i * 48) - 12);
+				HalfMarker.Show();
+			}
+			else
+			{
+				WaitMarker.SetPosition(10, LastContainerOffset + (i * 48) - 12);
+				WaitMarker.Show();
+			}
+			CurrentCostArray.Remove(0, 1);
+		}
+	}
+
+	if (IconMapping.Length > 0 && IconMapping[IconMapping.Length - 1].ObjectID != 0)
+	{
+		NextUnitName = XComGameState_Unit(`XCOMHISTORY.GetGameStateForObjectID(IconMapping[IconMapping.Length - 1].ObjectID)).GetName(eNameType_Full);
+		NextUnitText.SetText("Next:" @ NextUnitName);
+		NextUnitText.Show();
+	}
+	else if (IconMapping[IconMapping.Length - 1].ObjectID == 0)
+	{
+		NextUnitText.SetText("Next Turn");
+		NextUnitText.Show();
+	}
+	else
+	{
+		NextUnitText.Hide();
+	}
 
 
 	Container.SetSize(100, Size);
-	Container.SetPosition(10, -150 - Size);
+	Container.SetPosition(10, LastContainerOffset);
 	Container.Show();
 }
 
 function FocusCamera()
 {
 	local Actor TargetActor;
+	local string HoverUnitName;
 	local int SelectionIx;
-	SelectionIx = Container.SelectedIndex;	
+	SelectionIx = Container.SelectedIndex;
 
 	if(LookAtTargetCam != none)
 	{		
@@ -124,6 +233,24 @@ function FocusCamera()
 	}
 
 	if (SelectionIx == INDEX_NONE) return;
+	
+	HoverUnitText.SetPosition(68, LastContainerOffset + (SelectionIx * 48));
+	if (SelectionIx == IconMapping.Length - 1)
+	{
+		HoverUnitText.Hide();
+	}
+	else if (IconMapping[SelectionIx].ObjectID == 0)
+	{
+		HoverUnitText.SetText("Next Turn");
+		HoverUnitText.Show();
+	}
+	else
+	{
+		HoverUnitName = XComGameState_Unit(`XCOMHISTORY.GetGameStateForObjectID(IconMapping[SelectionIx].ObjectID)).GetName(eNameType_Full);
+		HoverUnitText.SetText(HoverUnitName);
+		HoverUnitText.Show();
+	}
+
 	if (IconMapping[SelectionIx].ObjectID == 0) return;
 	
 	TargetActor = `XCOMHISTORY.GetVisualizer(IconMapping[SelectionIx].ObjectID);
@@ -153,7 +280,7 @@ simulated function OnChildMouseEventDelegate(UIPanel Control, int cmd)
 simulated function ClearCamera()
 {
 	`log("Clearing Camera");
-
+	HoverUnitText.Hide();
 	if(LookAtTargetCam != none)
 	{		
 		`CAMERASTACK.RemoveCamera(LookAtTargetCam);
@@ -163,10 +290,22 @@ simulated function ClearCamera()
 
 function int SortUnits(StateObjectReference ObjectA, StateObjectReference ObjectB)
 {
-	local int RecoveryA, RecoveryB;
+	local int RecoveryA, RecoveryB, IndexA, IndexB;
 
 	RecoveryA = CurrentQueue.GetRecoveryTimeForUnitRef(ObjectA);
 	RecoveryB = CurrentQueue.GetRecoveryTimeForUnitRef(ObjectB);
+	IndexA = CurrentQueue.GetQueueIndexForUnitRef(ObjectA);
+	IndexB = CurrentQueue.GetQueueIndexForUnitRef(ObjectB);
+
+	if(RecoveryA == RecoveryB) // queue position takes over
+	{
+		if (IndexA < IndexB)
+		{
+			return -1;
+		}
+
+		return 0;
+	}
 
 	if( RecoveryA < RecoveryB )
 	{

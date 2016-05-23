@@ -47,6 +47,24 @@ function AddUnitToQueue(XComGameState_Unit UnitState, optional bool addedMidMiss
 	Queue.AddItem(QueueEntry);
 }
 
+function array<int> GetRecoveryCostArrayForUnitState(XComGameState_Unit UnitState)
+{
+	local int DefaultRecovery;
+	local array<int> CostArray;
+
+	DefaultRecovery = Clamp(
+		RecoveryCeiling - Round(UnitState.GetCurrentStat(eStat_Mobility)),
+		RecoveryMinClamp, RecoveryMaxClamp
+	);
+
+	CostArray.AddItem(DefaultRecovery);
+	CostArray.AddItem(Round(DefaultRecovery / 2));
+	CostArray.AddItem(RecoveryWait);
+
+
+
+	return CostArray;
+}
 
 function int GetRecoveryCostForUnitState(XComGameState_Unit UnitState)
 {
@@ -186,6 +204,30 @@ function int GetRecoveryTimeForUnitRef(StateObjectReference UnitRef)
 		return 1000;
 	}
 }
+
+function int GetQueueIndexForUnitRef(StateObjectReference UnitRef)
+{
+	local RecoveringUnit Entry;
+	local int ix;
+
+	foreach Queue(Entry, ix)
+	{
+		if (Entry.UnitRef.ObjectID == UnitRef.ObjectID)
+		{
+			return ix;
+		}
+	}
+
+	if (CurrentUnit.UnitRef.ObjectID == UnitRef.ObjectID)
+	{
+		return -1;
+	}
+	else
+	{
+		return 1000;
+	}
+}
+
 
 function bool CheckUnitInQueue(StateObjectReference UnitRef)
 {
