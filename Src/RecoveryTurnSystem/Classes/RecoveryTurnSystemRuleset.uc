@@ -357,7 +357,9 @@ simulated state TurnPhase_UnitActions
 		local XGPlayer PlayerStateVisualizer;
 		local XComGameState_RecoveryQueue RecoveryQueue;
 		local XComGameState_Unit UnitState, NewUnitState, FollowerState;
-		local StateObjectReference UnitRef, ControllingPlayer, FollowerRef;
+		local XComGameState_Effect Effect;
+		local Object BlankObject;
+		local StateObjectReference UnitRef, ControllingPlayer, FollowerRef, EffectRef;
 		local X2EventManager EventManager;
 		local int FollowerIx;
 
@@ -409,6 +411,15 @@ simulated state TurnPhase_UnitActions
 			NewGameState.AddStateObject(NewUnitState);
 			EventManager.TriggerEvent('RecoveryTurnSystemUpdate', RecoveryQueue);
 			SubmitGameState(NewGameState);
+
+			`log("Checking Effects");
+			foreach NewUnitState.AffectedByEffects(EffectRef)
+			{
+				Effect = XComGameState_Effect(CachedHistory.GetGameStateForObjectID(EffectRef.ObjectID));
+				`log("Checking Effect:" @ Effect.GetX2Effect().EffectName);
+				Effect.OnPlayerTurnTicked(BlankObject, BlankObject, NewGameState, 'PlayerTurnBegun');
+			}
+
 
 
 			// Moved this down here since SetupUnitActionsForPlayerTurnBegin needs to reset action points before 

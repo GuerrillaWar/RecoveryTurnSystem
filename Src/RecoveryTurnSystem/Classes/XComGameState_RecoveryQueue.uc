@@ -77,6 +77,11 @@ function int GetRecoveryCostForUnitState(XComGameState_Unit UnitState)
 
 	RemainingPoints = UnitState.NumActionPoints();
 
+	// force remaining points to be zero if unit is Unconscious
+	if (UnitState.AffectedByEffectNames.Find(class'X2StatusEffects'.default.UnconsciousName) != -1) {
+		RemainingPoints = 0;
+	}
+
 	if(RemainingPoints < 1)       // full move, apply full recovery cost
 	{
 		RecoveryCost = DefaultRecovery;
