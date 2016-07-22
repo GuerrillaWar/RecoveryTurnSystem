@@ -53,28 +53,27 @@ simulated state CreateTacticalGame
 		StartStateRecoveryQueue(StartState);
 		//*************************************************************************
 	}
+}
 
-	simulated function StartStateRecoveryQueue(XComGameState StartState)
-	{
-		local XComGameState_Unit UnitState;
-		local bool PartOfTeam;
-		local XComGameState_RecoveryQueue QueueState;		
+simulated function StartStateRecoveryQueue(XComGameState StartState)
+{
+	local XComGameState_Unit UnitState;
+	local bool PartOfTeam;
+	local XComGameState_RecoveryQueue QueueState;		
 		
-		QueueState = XComGameState_RecoveryQueue(StartState.CreateStateObject(class'XComGameState_RecoveryQueue'));
-		StartState.AddStateObject(QueueState);
-		QueueState.InitTurnTime();
+	QueueState = XComGameState_RecoveryQueue(StartState.CreateStateObject(class'XComGameState_RecoveryQueue'));
+	StartState.AddStateObject(QueueState);
+	QueueState.InitTurnTime();
 
-		foreach StartState.IterateByClassType(class'XComGameState_Unit', UnitState)
-		{
-			PartOfTeam = UnitState.GetTeam() == eTeam_XCom || UnitState.GetTeam() == eTeam_Alien;
+	foreach StartState.IterateByClassType(class'XComGameState_Unit', UnitState)
+	{
+		PartOfTeam = UnitState.GetTeam() == eTeam_XCom || UnitState.GetTeam() == eTeam_Alien;
 
-			if (!UnitState.GetMyTemplate().bIsCosmetic && PartOfTeam) {
-				`log("Adding to queue: " @UnitState.ObjectID);
-				QueueState.AddUnitToQueue(UnitState);
-			}
+		if (!UnitState.GetMyTemplate().bIsCosmetic && PartOfTeam) {
+			`log("Adding to queue: " @UnitState.ObjectID);
+			QueueState.AddUnitToQueue(UnitState);
 		}
 	}
-
 }
 
 simulated state TurnPhase_UnitActions
@@ -161,10 +160,10 @@ simulated state TurnPhase_UnitActions
 		local int PlayerIndex;
 
 		BattleData = XComGameState_BattleData(CachedHistory.GetGameStateForObjectID(CachedBattleDataRef.ObjectID));
-
 		EventManager = `XEVENTMGR;
 		if( UnitActionPlayerIndex > -1 )
 		{
+			`log("Team Section");
 			//Notify the player state's visualizer that they are no longer the unit action player
 			PlayerState = XComGameState_Player(CachedHistory.GetGameStateForObjectID(CachedUnitActionPlayerRef.ObjectID));
 			`assert(PlayerState != none);
@@ -178,6 +177,7 @@ simulated state TurnPhase_UnitActions
 
 			RecoveryQueue = XComGameState_RecoveryQueue(CachedHistory.GetSingleGameStateObjectForClass(class'XComGameState_RecoveryQueue'));
 			NewGameState = class'XComGameStateContext_ChangeContainer'.static.CreateChangeState("Roll Turn Timer");
+			`log("Creating State Object Recovery Queue");
 			RecoveryQueue = XComGameState_RecoveryQueue(NewGameState.CreateStateObject(class'XComGameState_RecoveryQueue', RecoveryQueue.ObjectID));
 			NewGameState.AddStateObject(RecoveryQueue);
 
@@ -264,6 +264,7 @@ simulated state TurnPhase_UnitActions
 		} else {
 			// start of mission, mark turn start here and fire turn start events
 			`log("START OF MISSION EVENTING");
+			RecoveryQueue = XComGameState_RecoveryQueue(CachedHistory.GetSingleGameStateObjectForClass(class'XComGameState_RecoveryQueue'));
 			for(PlayerIndex = 0; PlayerIndex < BattleData.PlayerTurnOrder.Length; ++PlayerIndex)
 			{
 				PlayerRef = BattleData.PlayerTurnOrder[PlayerIndex];
@@ -392,7 +393,7 @@ simulated state TurnPhase_UnitActions
 			NewUnitState = XComGameState_Unit(NewGameState.CreateStateObject(class'XComGameState_Unit', UnitState.ObjectID));
 
 			NewUnitState.SetupActionsForBeginTurn();
-			if (NewUnitState.IsGroupLeader()) {
+			if (NewUnitState.IsGroupLeader() && NewUnitState.GetGroupMembership() != none) {
 				if ( XGUnit(NewUnitState.GetVisualizer()).GetAlertLevel(UnitState) != eAL_Red )
 				{
 					foreach NewUnitState.GetGroupMembership().m_arrMembers(FollowerRef, FollowerIx)
@@ -404,7 +405,6 @@ simulated state TurnPhase_UnitActions
 						FollowerState.SetupActionsForBeginTurn();
 						NewGameState.AddStateObject(FollowerState);
 					}
-					`log("Alert Level" @ XGUnit(NewUnitState.GetVisualizer()).GetAlertLevel(UnitState));
 				}
 			}
 			// Add the updated unit state object to the new game state
@@ -412,7 +412,7 @@ simulated state TurnPhase_UnitActions
 			EventManager.TriggerEvent('RecoveryTurnSystemUpdate', RecoveryQueue);
 			SubmitGameState(NewGameState);
 
-			`log("Checking Effects");
+			`log("Ticking Effects");
 			foreach NewUnitState.AffectedByEffects(EffectRef)
 			{
 				Effect = XComGameState_Effect(CachedHistory.GetGameStateForObjectID(EffectRef.ObjectID));
@@ -545,7 +545,8 @@ static function CleanupTacticalMission(optional bool bSimCombat = false)
 {
 	local XComGameState NewGameState;
 	local XComGameState_RecoveryQueue RecoveryQueue;
-	
+
+	`log("Cleanup Recovery Queue at Mission End");
 	NewGameState = class'XComGameStateContext_ChangeContainer'.static.CreateChangeState("Remove RecoveryQueue");
 	RecoveryQueue = XComGameState_RecoveryQueue(`XCOMHISTORY.GetSingleGameStateObjectForClass(class'XComGameState_RecoveryQueue'));
 	NewGameState.RemoveStateObject(RecoveryQueue.ObjectID);
