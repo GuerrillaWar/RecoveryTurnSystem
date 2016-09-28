@@ -200,7 +200,8 @@ function UpdateQueuedUnits(XComGameState_RecoveryQueue Queue)
 	if (IconMapping.Length > 0 && IconMapping[IconMapping.Length - 1].ObjectID != 0)
 	{
 		NextUnitName = XComGameState_Unit(`XCOMHISTORY.GetGameStateForObjectID(IconMapping[IconMapping.Length - 1].ObjectID)).GetName(eNameType_Full);
-		NextUnitText.SetText("Next:" @ NextUnitName);
+		RecoveryTime = Queue.GetRecoveryTimeForUnitRef(IconMapping[IconMapping.Length - 1]);
+		NextUnitText.SetText("Next:" @ NextUnitName @ "-" @ RecoveryTime @ "RT");
 		NextUnitText.Show();
 	}
 	else if (IconMapping[IconMapping.Length - 1].ObjectID == 0)
@@ -223,7 +224,7 @@ function FocusCamera()
 {
 	local Actor TargetActor;
 	local string HoverUnitName;
-	local int SelectionIx;
+	local int SelectionIx, Recovery;
 	SelectionIx = Container.SelectedIndex;
 
 	if(LookAtTargetCam != none)
@@ -241,13 +242,15 @@ function FocusCamera()
 	}
 	else if (IconMapping[SelectionIx].ObjectID == 0)
 	{
-		HoverUnitText.SetText("Next Turn");
+		Recovery = CurrentQueue.TurnTimeRemaining;
+		HoverUnitText.SetText("Next Turn" @ "-" @ Recovery @ "RT");
 		HoverUnitText.Show();
 	}
 	else
 	{
 		HoverUnitName = XComGameState_Unit(`XCOMHISTORY.GetGameStateForObjectID(IconMapping[SelectionIx].ObjectID)).GetName(eNameType_Full);
-		HoverUnitText.SetText(HoverUnitName);
+		Recovery = CurrentQueue.GetRecoveryTimeForUnitRef(IconMapping[SelectionIx]);
+		HoverUnitText.SetText(HoverUnitName @ "-" @ Recovery @ "RT");
 		HoverUnitText.Show();
 	}
 
