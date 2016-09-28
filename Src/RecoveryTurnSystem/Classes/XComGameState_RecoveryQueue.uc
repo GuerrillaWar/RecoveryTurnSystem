@@ -81,6 +81,9 @@ function int GetRecoveryCostForUnitState(XComGameState_Unit UnitState)
 	if (UnitState.AffectedByEffectNames.Find(class'X2StatusEffects'.default.UnconsciousName) != -1) {
 		RemainingPoints = 0;
 	}
+	if (UnitState.AffectedByEffectNames.Find(class'X2StatusEffects'.default.BleedingOutName) != -1) {
+		RemainingPoints = 0;
+	}
 
 	if(RemainingPoints < 1)       // full move, apply full recovery cost
 	{

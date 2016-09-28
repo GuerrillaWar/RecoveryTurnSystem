@@ -6,6 +6,8 @@ class RecoveryTurnSystemRuleset extends X2TacticalGameRuleset config(RecoveryTur
 var() bool bSkipRemainingTurnActivity; // we need our own because the base class protected it
 var() ETeam LastActiveTeam;
 
+var const config array<name> EffectsTickOnUnitTurn;
+
 function OnNewGameState(XComGameState NewGameState)
 {
 	local XComGameStateContext_TacticalGameRule TacticalContext;
@@ -416,8 +418,11 @@ simulated state TurnPhase_UnitActions
 			foreach NewUnitState.AffectedByEffects(EffectRef)
 			{
 				Effect = XComGameState_Effect(CachedHistory.GetGameStateForObjectID(EffectRef.ObjectID));
-				`log("Checking Effect:" @ Effect.GetX2Effect().EffectName);
-				Effect.OnPlayerTurnTicked(BlankObject, BlankObject, NewGameState, 'PlayerTurnBegun');
+				
+				if (default.EffectsTickOnUnitTurn.Find(Effect.GetX2Effect().EffectName) != -1) {
+					`log("Ticking Effect:" @ Effect.GetX2Effect().EffectName);
+					Effect.OnPlayerTurnTicked(BlankObject, BlankObject, NewGameState, 'PlayerTurnBegun');
+				}
 			}
 
 
